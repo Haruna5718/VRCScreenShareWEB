@@ -20,24 +20,23 @@ main {
 	padding: clamp(12px, 4vh, 42px) clamp(12px, 4.4vw, 42px);
 	display: grid;
 	place-items: center;
+	container-type: size;
 }
 
 .share-card {
-	width: 100%;
-	height: 100%;
+	width: min(100cqw, calc(177.78cqh - 119px));
+	height: auto;
 	min-width: 0;
-	min-height: 0;
-	display: grid;
-	grid-template-rows: minmax(0, 1fr) auto;
+	display: flex;
+	flex-direction: column;
 	gap: 5px;
-	container-type: size;
+	transform: translateY(clamp(0px, 1.6vh, 18px));
 }
 
 .preview {
 	position: relative;
-	width: min(100cqw, calc(177.78cqh - 119px));
+	width: 100%;
 	aspect-ratio: 16 / 9;
-	place-self: center;
 	overflow: hidden;
 	background: #000;
 	user-select: none;
@@ -50,7 +49,7 @@ main {
 	height: 100%;
 	object-fit: contain;
 	background: #000;
-	transition: filter .18s ease;
+	transition: filter .18s ease, opacity .18s ease;
 }
 
 .source-overlay, .offline-overlay {
@@ -71,13 +70,14 @@ main {
 	min-width: 220px;
 	max-width: min(100% - 32px, 360px);
 	padding: 12px 18px;
-	border: 1px solid #ffffff20;
+	border: 1px solid #ffffff24;
 	border-radius: 4px;
-	background: linear-gradient(180deg, #303030 0%, #242424 100%);
-	box-shadow: 0 3px 12px #0008;
+	background: #00000080;
+	backdrop-filter: blur(12px);
 	font-size: 14px;
-	font-weight: 650;
+	font-weight: 600;
 	text-align: center;
+	transition: opacity .18s ease, transform .18s ease;
 }
 
 .source-overlay:hover { background: #0000001f; }

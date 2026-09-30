@@ -184,7 +184,7 @@
 			copied = label;
 			clearTimeout(copyTimer);
 			copyTimer = setTimeout(() => (copied = ""), 1400);
-			showNotice(1, "Copied", "The RTSP/TCP address is on your clipboard.");
+			showNotice(1, "Copied", "The Streaming address is on your clipboard.");
 		} catch {
 			showNotice(3, "Copy failed", "Clipboard access was blocked by the browser.");
 		}

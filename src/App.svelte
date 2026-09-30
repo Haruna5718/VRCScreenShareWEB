@@ -4,10 +4,9 @@
 	let video;
 	let code = "";
 	let live = false;
-	let canPublish = false;
 	let sharing = false;
 	let busy = false;
-	let error = "";
+	let notice = null;
 	let copied = "";
 	let rtspAddress = "";
 	let publisher = null;
@@ -15,8 +14,13 @@
 	let publishAudioContext = null;
 	let pollTimer;
 	let copyTimer;
+	let noticeTimer;
+	let createSessionRequest = null;
+	const sessionKey = "vrc-screenshare-session";
 
 	const mediaUrl = (path, suffix) => `${location.origin}/media/${path}/${suffix}`;
+	const saveSessionCode = (value) => { try { sessionStorage.setItem(sessionKey, value); } catch {} };
+	const clearSessionCode = () => { try { sessionStorage.removeItem(sessionKey); } catch {} };
 
 	async function loadClass(url, name) {
 		if (window[name]) return window[name];
@@ -52,19 +56,44 @@
 		publishAudioContext = null;
 	}
 
+	function showNotice(severity, title, message) {
+		if (notice?.title === title && notice?.message === message) return;
+		notice = { severity, title, message };
+		clearTimeout(noticeTimer);
+		noticeTimer = setTimeout(() => (notice = null), 6000);
+	}
+
+	function acceptSession(session) {
+		code = session.code;
+		saveSessionCode(code);
+		live = session.ready;
+		rtspAddress = session.rtspUrl;
+	}
+
+	async function createSession() {
+		if (createSessionRequest) return createSessionRequest;
+		createSessionRequest = (async () => {
+			const response = await fetch("/api/session", { method: "POST", cache: "no-store" });
+			if (!response.ok) throw new Error("Could not create a share session.");
+			acceptSession(await response.json());
+		})();
+		try { await createSessionRequest; } finally { createSessionRequest = null; }
+	}
+
 	async function refreshSession() {
 		try {
-			const query = code ? "?code=" + encodeURIComponent(code) : "";
-			const response = await fetch("/api/session" + query, { cache: "no-store" });
+			if (!code) return await createSession();
+			const response = await fetch("/api/session?code=" + encodeURIComponent(code), { cache: "no-store" });
+			if (response.status === 404) {
+				code = "";
+				clearSessionCode();
+				return await createSession();
+			}
 			if (!response.ok) throw new Error("The share session is unavailable.");
 			const session = await response.json();
-			if (!code) code = session.code;
-			live = session.ready;
-			canPublish = session.canPublish;
-			rtspAddress = session.rtspUrl;
-			error = "";
+			acceptSession(session);
 		} catch (cause) {
-			error = cause instanceof Error ? cause.message : String(cause);
+			showNotice("critical", "Connection failed", cause instanceof Error ? cause.message : String(cause));
 		}
 	}
 
@@ -82,9 +111,8 @@
 	}
 
 	async function chooseSource() {
-		if (!canPublish || busy) return;
+		if (busy) return;
 		busy = true;
-		error = "";
 		let nextStream;
 		let replaced = false;
 		try {
@@ -136,7 +164,7 @@
 				sharing = false;
 				if (video && video.srcObject === nextStream) video.srcObject = null;
 			}
-			error = cause instanceof Error ? cause.message : String(cause);
+			showNotice("critical", "Screen sharing failed", cause instanceof Error ? cause.message : String(cause));
 			await refreshSession();
 		} finally {
 			busy = false;
@@ -149,22 +177,23 @@
 			copied = label;
 			clearTimeout(copyTimer);
 			copyTimer = setTimeout(() => (copied = ""), 1400);
+			showNotice("success", "Copied", "The RTSP/TCP address is on your clipboard.");
 		} catch {
-			error = "Clipboard access was blocked by the browser.";
+			showNotice("critical", "Copy failed", "Clipboard access was blocked by the browser.");
 		}
 	}
 
 	onMount(() => {
-		code = location.pathname.split("/").filter(Boolean)[0] || "";
-		if (location.search) {
-			history.replaceState(null, "", location.pathname);
+		const navigationType = performance.getEntriesByType("navigation")[0]?.type;
+		if (navigationType === "reload" || navigationType === "back_forward") {
+			try { code = sessionStorage.getItem(sessionKey) || ""; } catch { code = ""; }
 		}
-		sessionStorage.removeItem("vrc-screenshare-owner");
 		refreshSession();
 		pollTimer = setInterval(refreshSession, 1200);
 		return () => {
 			clearInterval(pollTimer);
 			clearTimeout(copyTimer);
+			clearTimeout(noticeTimer);
 			publisher?.close();
 			captureStream?.getTracks().forEach((track) => track.stop());
 			closePublishAudio();
@@ -181,13 +210,9 @@
 	<section class="share-card" aria-label="Screen share">
 		<div class="preview" class:has-stream={live || sharing}>
 			<video bind:this={video} autoplay muted playsinline></video>
-			{#if canPublish}
-				<button class="source-overlay" onclick={chooseSource} disabled={busy} aria-label="Select or change screen source">
-					<span>{busy ? "Connecting…" : sharing ? "Click to Change source" : "Click to Select source"}</span>
-				</button>
-			{:else if !live}
-				<div class="offline-overlay"><span>Waiting for source</span></div>
-			{/if}
+			<button class="source-overlay" onclick={chooseSource} disabled={busy} aria-label="Select or change screen source">
+				<span>{busy ? "Connecting…" : sharing ? "Click to Change source" : "Click to Select source"}</span>
+			</button>
 		</div>
 
 		<div class="links-panel">
@@ -200,9 +225,17 @@
 					{copied === "rtsp" ? "" : ""}
 				</button>
 			</div>
-			{#if error}
-				<p class="error-message" role="status">{error}</p>
-			{/if}
 		</div>
 	</section>
 </main>
+
+{#if notice}
+	<aside class="notice" class:success={notice.severity === "success"} class:caution={notice.severity === "caution"} class:critical={notice.severity === "critical"} role={notice.severity === "critical" ? "alert" : "status"} aria-live={notice.severity === "critical" ? "assertive" : "polite"}>
+		<span class="notice-icon" aria-hidden="true">{notice.severity === "success" ? "" : notice.severity === "caution" ? "" : ""}</span>
+		<div class="notice-copy">
+			<strong>{notice.title}</strong>
+			<span>{notice.message}</span>
+		</div>
+		<button class="notice-close" onclick={() => (notice = null)} aria-label="Dismiss"></button>
+	</aside>
+{/if}

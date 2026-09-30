@@ -25,6 +25,8 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8080").rst
 PUBLIC_RTSP_HOST = os.environ.get("PUBLIC_RTSP_HOST", "").strip()
 HOST = os.environ.get("HOST", "0.0.0.0")
 CODE_ALPHABET = string.ascii_letters + string.digits
+SESSION_TTL = 6 * 60 * 60
+SESSION_CODE_LENGTH = 6
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("screenshare")
 
@@ -43,16 +45,40 @@ def _persistent_value(filename: str, make_value, valid) -> str:
 	return value
 
 
-ROOM_CODE = _persistent_value(
-	"room-code",
-	lambda: "".join(secrets.choice(CODE_ALPHABET) for _ in range(6)),
-	lambda value: len(value) == 6 and all(char in CODE_ALPHABET for char in value),
-)
 OWNER_KEY = _persistent_value("owner-key", lambda: secrets.token_urlsafe(32), lambda value: len(value) >= 40)
-INGEST_PATH = f"{ROOM_CODE}_ingest"
 STOP = threading.Event()
+sessions: dict[str, float] = {}
+sessions_lock = threading.Lock()
 relay_lock = threading.Lock()
-relay_process: subprocess.Popen | None = None
+relay_processes: dict[str, subprocess.Popen] = {}
+
+
+def _valid_code(value: str) -> bool:
+	return len(value) == SESSION_CODE_LENGTH and all(char in CODE_ALPHABET for char in value)
+
+
+def _new_session() -> str:
+	with sessions_lock:
+		while True:
+			code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(SESSION_CODE_LENGTH))
+			if code not in sessions:
+				sessions[code] = time.monotonic()
+				return code
+
+
+def _touch_session(code: str) -> bool:
+	if not _valid_code(code):
+		return False
+	with sessions_lock:
+		if code not in sessions:
+			return False
+		sessions[code] = time.monotonic()
+		return True
+
+
+def _session_codes() -> list[str]:
+	with sessions_lock:
+		return list(sessions)
 
 
 def _media_path_ready(path: str) -> bool:
@@ -65,11 +91,9 @@ def _media_path_ready(path: str) -> bool:
 		return False
 
 
-def _stop_relay() -> None:
-	global relay_process
+def _stop_relay(code: str) -> None:
 	with relay_lock:
-		process = relay_process
-		relay_process = None
+		process = relay_processes.pop(code, None)
 	if process is None or process.poll() is not None:
 		return
 	process.terminate()
@@ -80,17 +104,19 @@ def _stop_relay() -> None:
 		process.wait(timeout=2)
 
 
-def _start_relay() -> None:
-	global relay_process
+def _start_relay(code: str) -> None:
 	with relay_lock:
-		if relay_process is not None and relay_process.poll() is None:
+		process = relay_processes.get(code)
+		if process is not None and process.poll() is None:
 			return
+		relay_processes.pop(code, None)
 		ffmpeg = shutil.which(os.environ.get("FFMPEG", "ffmpeg"))
 		if ffmpeg is None:
 			log.error("ffmpeg was not found in the container")
 			return
-		input_url = f"srt://mediamtx:8890?streamid=read:{INGEST_PATH}:relay:{OWNER_KEY}"
-		output_url = f"rtsp://relay:{OWNER_KEY}@mediamtx:8554/{ROOM_CODE}"
+		ingest_path = f"{code}_ingest"
+		input_url = f"srt://mediamtx:8890?streamid=read:{ingest_path}:relay:{OWNER_KEY}"
+		output_url = f"rtsp://relay:{OWNER_KEY}@mediamtx:8554/{code}"
 		command = [
 			ffmpeg,
 			"-nostdin",
@@ -137,22 +163,41 @@ def _start_relay() -> None:
 			"rtsp",
 			output_url,
 		]
-		log.info("Starting RTSP/TCP relay for room %s", ROOM_CODE)
-		relay_process = subprocess.Popen(command)
+		log.info("Starting RTSP/TCP relay for session %s", code)
+		relay_processes[code] = subprocess.Popen(command)
+
+
+def _expire_sessions(now: float) -> None:
+	with sessions_lock:
+		expired = [code for code, touched in sessions.items() if now - touched > SESSION_TTL]
+	for code in expired:
+		if _media_path_ready(f"{code}_ingest"):
+			_touch_session(code)
+			continue
+		with sessions_lock:
+			removed = now - sessions.get(code, now) > SESSION_TTL
+			if removed:
+				sessions.pop(code, None)
+		if removed:
+			_stop_relay(code)
 
 
 def _watch_stream() -> None:
-	last_start = 0.0
+	last_cleanup = time.monotonic()
 	while not STOP.wait(0.8):
-		if _media_path_ready(INGEST_PATH):
-			with relay_lock:
-				running = relay_process is not None and relay_process.poll() is None
-			if not running and time.monotonic() - last_start > 1.0:
-				_start_relay()
-				last_start = time.monotonic()
-		else:
-			_stop_relay()
-	_stop_relay()
+		now = time.monotonic()
+		if now - last_cleanup > 60:
+			_expire_sessions(now)
+			last_cleanup = now
+		for code in _session_codes():
+			if _media_path_ready(f"{code}_ingest"):
+				_start_relay(code)
+			else:
+				_stop_relay(code)
+	with relay_lock:
+		codes = list(relay_processes)
+	for code in codes:
+		_stop_relay(code)
 
 
 def _authorized(payload: dict) -> bool:
@@ -166,11 +211,14 @@ def _authorized(payload: dict) -> bool:
 		# MediaMTX's API is only reachable on the private Compose network.
 		return True
 	if action == "publish":
-		# The shared community room accepts public publishers on its ingest path.
-		return path == INGEST_PATH or (owner and path == ROOM_CODE)
-	if action == "read" and path == ROOM_CODE:
-		return True
-	return action == "read" and protocol == "srt" and path == INGEST_PATH and user == "relay" and owner
+		if path.endswith("_ingest"):
+			return _touch_session(path[:-7])
+		return owner and _touch_session(path)
+	if action == "read" and protocol == "srt" and user == "relay" and owner:
+		return path.endswith("_ingest") and _touch_session(path[:-7])
+	if action == "read":
+		return _touch_session(path)
+	return False
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -197,7 +245,7 @@ class Handler(SimpleHTTPRequestHandler):
 		upstream_path = parsed.path[len("/media"):]
 		parts = upstream_path.lstrip("/").split("/", 1)
 		endpoint = parts[1] if len(parts) == 2 else ""
-		if not parts or parts[0] != INGEST_PATH or (
+		if not parts or not parts[0].endswith("_ingest") or not _touch_session(parts[0][:-7]) or (
 			endpoint not in {"publisher.js", "whip"} and not endpoint.startswith("whip/")
 		):
 			return self.send_error(404)
@@ -251,20 +299,18 @@ class Handler(SimpleHTTPRequestHandler):
 			return self._json(200, {"ok": True})
 		if path == "/api/session":
 			requested_code = parse_qs(urlsplit(self.path).query).get("code", [""])[0]
-			if requested_code and requested_code != ROOM_CODE:
+			if not _touch_session(requested_code):
 				return self.send_error(404)
 			rtsp_host = PUBLIC_RTSP_HOST or urlsplit(PUBLIC_BASE_URL).hostname or "localhost"
 			return self._json(
 				200,
 				{
-					"code": ROOM_CODE,
-					"rtspHost": rtsp_host,
-					"rtspUrl": f"rtspt://{rtsp_host}:8554/{ROOM_CODE}",
-					"ready": _media_path_ready(ROOM_CODE),
-					"canPublish": True,
+					"code": requested_code,
+					"rtspUrl": f"rtspt://{rtsp_host}:8554/{requested_code}",
+					"ready": _media_path_ready(requested_code),
 				},
 			)
-		if path in {"/", f"/{ROOM_CODE}"}:
+		if path == "/":
 			self.path = "/index.html"
 		elif not path.startswith("/assets/"):
 			self.send_error(404)
@@ -275,6 +321,10 @@ class Handler(SimpleHTTPRequestHandler):
 		path = urlsplit(self.path).path
 		if path.startswith("/media/"):
 			return self._proxy_media()
+		if path == "/api/session":
+			code = _new_session()
+			rtsp_host = PUBLIC_RTSP_HOST or urlsplit(PUBLIC_BASE_URL).hostname or "localhost"
+			return self._json(201, {"code": code, "rtspUrl": f"rtspt://{rtsp_host}:8554/{code}", "ready": False})
 		if path != "/api/auth":
 			return self.send_error(404)
 		try:
@@ -302,15 +352,16 @@ def main() -> None:
 		raise RuntimeError("Svelte build is missing. Run npm run build before starting the server.")
 	threading.Thread(target=_watch_stream, name="stream-relay", daemon=True).start()
 	server = ThreadingHTTPServer((HOST, int(os.environ.get("PORT", "8000"))), Handler)
-	rtsp_host = PUBLIC_RTSP_HOST or urlsplit(PUBLIC_BASE_URL).hostname or "localhost"
 	log.info("Share page: %s", PUBLIC_BASE_URL)
-	log.info("RTSP/TCP URL: rtspt://%s:8554/%s", rtsp_host, ROOM_CODE)
 	try:
 		server.serve_forever()
 	finally:
 		STOP.set()
 		server.server_close()
-		_stop_relay()
+		with relay_lock:
+			codes = list(relay_processes)
+		for code in codes:
+			_stop_relay(code)
 
 
 if __name__ == "__main__":

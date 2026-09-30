@@ -1,6 +1,6 @@
 # VRCScreenShare Web
 
-A small public screen streamer based on the capture and RTSP/TCP relay flow in VRCUtil's `VRCScreenShare` module. The main Svelte page is the shared room: anyone can open it, select a screen, and publish. MediaMTX receives the browser stream, and FFmpeg relays it to an RTSP/TCP path with AAC audio for VRChat players.
+A small public screen streamer based on the capture and RTSP/TCP relay flow in VRCUtil's `VRCScreenShare` module. Each browser tab gets its own six-character room ID, can select a screen, and publish. MediaMTX receives the browser stream, and FFmpeg relays it to an RTSP/TCP path with AAC audio for VRChat players.
 
 ## Run with Docker Compose
 
@@ -12,15 +12,9 @@ A small public screen streamer based on the capture and RTSP/TCP relay flow in V
    docker compose -f compose.yaml -f compose.standalone.yaml up --build -d
    ```
 
-4. Open the main `PUBLIC_BASE_URL` to select a screen. The app logs the RTSP/TCP address:
+4. Open the main `PUBLIC_BASE_URL` to select a screen. The page shows the session's TCP-only `rtspt://` address and its copy button copies that same address.
 
-   ```sh
-   docker compose logs app
-   ```
-
-   The page shows the same TCP-only `rtspt://` address that its copy button copies.
-
-The six-character room code and internal relay credentials are saved in the `screenshare-data` volume, so restarting Compose keeps the addresses. Remove that volume only when you want a new room.
+The room ID is scoped to a browser tab and survives reloads in that tab. Opening the main page in another tab or browser creates a different ID. Inactive sessions expire after six hours; the internal relay credential is saved in the `screenshare-data` volume.
 
 ## Network setup
 
@@ -29,7 +23,7 @@ The six-character room code and internal relay credentials are saved in the `scr
 - Forward TCP `RTSP_PORT` (default `8554`) from `RTSP_BIND_ADDRESS` (default `0.0.0.0`) for VRChat/RTSP viewers. RTSP is configured for TCP transport only.
 - Set `PUBLIC_BASE_URL` to the public HTTPS origin and `PUBLIC_RTSP_HOST` to the public RTSP host. If the web hostname is behind an HTTP-only CDN proxy, use the server's public IP for `PUBLIC_RTSP_HOST` and `WEBRTC_ADDITIONAL_HOSTS` so RTSP and WebRTC media bypass that proxy.
 
-The six-character room path is unlisted, not a password. Anyone who can reach the main page can publish to the shared room or watch its RTSP stream. MediaMTX accepts one active publisher per room.
+The six-character room path is unlisted, not a password. Anyone who has a session's RTSP URL can watch that stream. Each session accepts one active publisher.
 
 ## Development
 

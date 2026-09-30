@@ -52,7 +52,7 @@ main {
 	transition: filter .18s ease, opacity .18s ease;
 }
 
-.source-overlay, .offline-overlay {
+.source-overlay {
 	position: absolute;
 	inset: 0;
 	display: flex;
@@ -66,7 +66,7 @@ main {
 
 .source-overlay { cursor: pointer; }
 .source-overlay:disabled { cursor: wait; }
-.source-overlay span, .offline-overlay span {
+.source-overlay span {
 	min-width: 220px;
 	max-width: min(100% - 32px, 360px);
 	padding: 12px 18px;
@@ -84,9 +84,6 @@ main {
 .preview.has-stream .source-overlay span { opacity: 0; transform: translateY(4px); transition: .18s ease; }
 .preview.has-stream:hover video { filter: blur(3px) brightness(.65); }
 .preview.has-stream:hover .source-overlay span { opacity: 1; transform: translateY(0); }
-.offline-overlay { pointer-events: none; color: #c5c5c5; }
-.offline-overlay span { opacity: .75; }
-
 .links-panel {
 	min-width: 0;
 	padding: 15px;
@@ -157,11 +154,66 @@ main {
 }
 .copy-button:hover { background: #505050; }
 .copy-button:disabled { cursor: default; opacity: .55; }
-.error-message { margin: 9px 0 0; color: #ff9b9b; font-size: 12px; overflow-wrap: anywhere; }
+.notice {
+	position: fixed;
+	right: 24px;
+	bottom: 24px;
+	z-index: 5;
+	width: min(380px, calc(100vw - 32px));
+	min-height: 72px;
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 14px 12px;
+	border: 1px solid #555;
+	border-left: 4px solid #60cdff;
+	border-radius: 5px;
+	background: #333;
+	box-shadow: 0 8px 28px #0008;
+	color: #f3f3f3;
+	font-family: inherit;
+	animation: notice-in .16s ease-out;
+}
+.notice.success { border-left-color: #6ccb5f; }
+.notice.caution { border-left-color: #fce100; }
+.notice.critical { border-left-color: #ff99a4; }
+.notice-icon {
+	flex: 0 0 20px;
+	padding-top: 1px;
+	color: #60cdff;
+	font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+	font-size: 17px;
+	line-height: 20px;
+}
+.notice.success .notice-icon { color: #6ccb5f; }
+.notice.caution .notice-icon { color: #fce100; }
+.notice.critical .notice-icon { color: #ff99a4; }
+.notice-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 4px; }
+.notice-copy strong { font-size: 13px; font-weight: 600; line-height: 18px; }
+.notice-copy span { color: #d0d0d0; font-size: 12px; line-height: 17px; overflow-wrap: anywhere; }
+.notice-close {
+	flex: 0 0 26px;
+	width: 26px;
+	height: 26px;
+	margin: -5px -3px 0 0;
+	border: 0;
+	border-radius: 3px;
+	background: transparent;
+	color: #ccc;
+	font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+	font-size: 12px;
+	cursor: pointer;
+}
+.notice-close:hover { background: #ffffff18; color: #fff; }
+@keyframes notice-in {
+	from { opacity: 0; transform: translateY(5px); }
+	to { opacity: 1; transform: translateY(0); }
+}
 
 @media (max-width: 540px) {
 	main { padding: 12px; }
 	.links-panel { padding: 12px; }
 	.link-pill { max-width: calc(100% - 39px); }
 	.link-value { font-size: 11px; }
+	.notice { right: 12px; bottom: 12px; }
 }

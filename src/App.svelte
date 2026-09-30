@@ -9,8 +9,7 @@
 	let busy = false;
 	let error = "";
 	let copied = "";
-	let rtspHost = "";
-	let ownerKey = "";
+	let rtspAddress = "";
 	let publisher = null;
 	let captureStream = null;
 	let publishAudioContext = null;
@@ -18,7 +17,6 @@
 	let copyTimer;
 
 	const mediaUrl = (path, suffix) => `${location.origin}/media/${path}/${suffix}`;
-	const rtspUrl = () => `rtspt://${rtspHost || location.hostname}:8554/${code}`;
 
 	async function loadClass(url, name) {
 		if (window[name]) return window[name];
@@ -56,13 +54,15 @@
 
 	async function refreshSession() {
 		try {
-			const headers = ownerKey ? { Authorization: `Bearer ${ownerKey}` } : {};
-			const response = await fetch("/api/session?code=" + encodeURIComponent(code), { headers, cache: "no-store" });
+			const query = code ? "?code=" + encodeURIComponent(code) : "";
+			const response = await fetch("/api/session" + query, { cache: "no-store" });
 			if (!response.ok) throw new Error("The share session is unavailable.");
 			const session = await response.json();
+			if (!code) code = session.code;
 			live = session.ready;
 			canPublish = session.canPublish;
-			rtspHost = session.rtspHost || "";
+			rtspAddress = session.rtspUrl;
+			error = "";
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : String(cause);
 		}
@@ -114,8 +114,6 @@
 				};
 				publisher = new Publisher({
 					url: mediaUrl(`${code}_ingest`, "whip"),
-					user: "owner",
-					pass: ownerKey,
 					stream: outgoingStream,
 					videoCodec: "h264/90000",
 					videoBitrate: 5000,
@@ -157,13 +155,11 @@
 	}
 
 	onMount(() => {
-		const params = new URLSearchParams(location.search);
-		code = location.pathname.slice(1);
-		ownerKey = params.get("key") || sessionStorage.getItem("vrc-screenshare-owner") || "";
-		if (params.has("key")) {
-			sessionStorage.setItem("vrc-screenshare-owner", ownerKey);
+		code = location.pathname.split("/").filter(Boolean)[0] || "";
+		if (location.search) {
 			history.replaceState(null, "", location.pathname);
 		}
+		sessionStorage.removeItem("vrc-screenshare-owner");
 		refreshSession();
 		pollTimer = setInterval(refreshSession, 1200);
 		return () => {
@@ -177,7 +173,7 @@
 </script>
 
 <svelte:head>
-	<title>VRCScreenShare · {code}</title>
+	<title>VRCScreenShare</title>
 	<meta name="description" content="Send a live screen stream to VRChat over RTSP/TCP." />
 </svelte:head>
 
@@ -196,9 +192,11 @@
 
 		<div class="links-panel">
 			<div class="link-row">
-				<span class="status-dot" class:online={live} title={live ? "Streaming" : "Stopped"} aria-label={live ? "Streaming" : "Stopped"}></span>
-				<span class="link-value">{rtspUrl()}</span>
-				<button class="copy-button" onclick={() => copy(rtspUrl(), "rtsp")} aria-label="Copy RTSP/TCP URL" title="Copy RTSP/TCP URL">
+				<div class="link-pill">
+					<span class="status-dot" class:online={live} title={live ? "Streaming" : "Stopped"} aria-label={live ? "Streaming" : "Stopped"}></span>
+					<span class="link-value">{rtspAddress || "Connecting…"}</span>
+				</div>
+				<button class="copy-button" onclick={() => copy(rtspAddress, "rtsp")} disabled={!rtspAddress} aria-label="Copy RTSP/TCP URL" title="Copy RTSP/TCP URL">
 					{copied === "rtsp" ? "✓" : "▢"}
 				</button>
 			</div>

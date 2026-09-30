@@ -1,35 +1,45 @@
 :root {
-	font-family: Inter, "Segoe UI", Arial, sans-serif;
+	font-family: "Segoe UI", system-ui, Arial, sans-serif;
 	color: #ececec;
 	background: #252525;
 	font-synthesis: none;
 	text-rendering: optimizeLegibility;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
-	font-optical-sizing: auto;
 }
 
 * { box-sizing: border-box; }
 
-html, body, #app { width: 100%; min-height: 100%; margin: 0; }
-
-body { min-height: 100vh; background: #252525; }
+html, body, #app { width: 100%; height: 100%; margin: 0; }
+body { overflow: hidden; background: #252525; }
 
 main {
-	min-height: 100vh;
+	width: 100%;
+	height: 100vh;
+	height: 100dvh;
+	padding: clamp(12px, 4vh, 42px) clamp(12px, 4.4vw, 42px);
 	display: grid;
 	place-items: center;
-	padding: clamp(16px, 5vw, 48px);
 }
 
-.share-card { width: min(100%, 1120px); }
+.share-card {
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	display: grid;
+	grid-template-rows: minmax(0, 1fr) auto;
+	gap: 5px;
+	container-type: size;
+}
 
 .preview {
 	position: relative;
+	width: min(100cqw, calc(177.78cqh - 119px));
 	aspect-ratio: 16 / 9;
+	place-self: center;
 	overflow: hidden;
 	background: #000;
-	border-radius: 3px;
 	user-select: none;
 }
 
@@ -60,11 +70,11 @@ main {
 .source-overlay span, .offline-overlay span {
 	min-width: 220px;
 	max-width: min(100% - 32px, 360px);
-	padding: 13px 18px;
-	border: 1px solid #ffffff24;
+	padding: 12px 18px;
+	border: 1px solid #ffffff20;
 	border-radius: 4px;
-	background: #000000a6;
-	backdrop-filter: blur(12px);
+	background: linear-gradient(180deg, #303030 0%, #242424 100%);
+	box-shadow: 0 3px 12px #0008;
 	font-size: 14px;
 	font-weight: 650;
 	text-align: center;
@@ -78,10 +88,10 @@ main {
 .offline-overlay span { opacity: .75; }
 
 .links-panel {
-	margin-top: 8px;
-	padding: 12px 16px;
-	border: 1px solid #161616;
-	border-radius: 4px;
+	min-width: 0;
+	padding: 15px;
+	border: 1px solid #191919;
+	border-radius: 5px;
 	background: #333;
 }
 
@@ -89,33 +99,48 @@ main {
 	min-width: 0;
 	display: flex;
 	align-items: center;
-	gap: 9px;
-	min-height: 34px;
+	gap: 5px;
+	height: 30px;
 }
 
-.status-dot { flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%; background: #858585; }
+.link-pill {
+	min-width: 0;
+	max-width: min(100%, 560px);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 9px;
+	border: 1px solid #202020;
+	border-radius: 4px;
+	background: #292929;
+}
+
+.status-dot {
+	flex: 0 0 9px;
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	background: #858585;
+}
 .status-dot.online { background: #5fc768; box-shadow: 0 0 8px #5fc76860; }
 
 .link-value {
 	min-width: 0;
-	flex: 1;
-	padding: 7px 10px;
+	padding: 6px 0;
 	overflow: hidden;
-	border: 1px solid #252525;
-	border-radius: 4px;
-	background: #292929;
 	color: #c4c4c4;
-	font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+	font-family: inherit;
 	font-size: 12px;
+	font-weight: 600;
+	line-height: 16px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	text-decoration: none;
 }
 
 .copy-button {
 	flex: 0 0 34px;
 	width: 34px;
-	height: 34px;
+	height: 30px;
 	border: 1px solid #565656;
 	border-radius: 4px;
 	background: #414141;
@@ -125,10 +150,12 @@ main {
 	cursor: pointer;
 }
 .copy-button:hover { background: #505050; }
+.copy-button:disabled { cursor: default; opacity: .55; }
 .error-message { margin: 9px 0 0; color: #ff9b9b; font-size: 12px; overflow-wrap: anywhere; }
 
 @media (max-width: 540px) {
-	main { padding: 14px; }
-	.links-panel { padding: 10px; }
+	main { padding: 12px; }
+	.links-panel { padding: 12px; }
+	.link-pill { max-width: calc(100% - 39px); }
 	.link-value { font-size: 11px; }
 }

@@ -162,8 +162,12 @@ def _authorized(payload: dict) -> bool:
 	user = str(payload.get("user", ""))
 	password = str(payload.get("password", ""))
 	owner = user in {"owner", "relay"} and secrets.compare_digest(password, OWNER_KEY)
+	if action == "api":
+		# MediaMTX's API is only reachable on the private Compose network.
+		return True
 	if action == "publish":
-		return owner and path in {ROOM_CODE, INGEST_PATH}
+		# The shared community room accepts public publishers on its ingest path.
+		return path == INGEST_PATH or (owner and path == ROOM_CODE)
 	if action == "read" and path == ROOM_CODE:
 		return True
 	return action == "read" and protocol == "srt" and path == INGEST_PATH and user == "relay" and owner
@@ -246,26 +250,21 @@ class Handler(SimpleHTTPRequestHandler):
 		if path == "/healthz":
 			return self._json(200, {"ok": True})
 		if path == "/api/session":
-			if parse_qs(urlsplit(self.path).query).get("code", [""])[0] != ROOM_CODE:
+			requested_code = parse_qs(urlsplit(self.path).query).get("code", [""])[0]
+			if requested_code and requested_code != ROOM_CODE:
 				return self.send_error(404)
-			authorization = self.headers.get("Authorization", "")
-			presented = authorization[7:].strip() if authorization.lower().startswith("bearer ") else ""
+			rtsp_host = PUBLIC_RTSP_HOST or urlsplit(PUBLIC_BASE_URL).hostname or "localhost"
 			return self._json(
 				200,
 				{
+					"code": ROOM_CODE,
+					"rtspHost": rtsp_host,
+					"rtspUrl": f"rtspt://{rtsp_host}:8554/{ROOM_CODE}",
 					"ready": _media_path_ready(ROOM_CODE),
-					"canPublish": bool(presented) and secrets.compare_digest(presented, OWNER_KEY),
-					"rtspHost": PUBLIC_RTSP_HOST,
+					"canPublish": True,
 				},
 			)
-		if path == "/":
-			body = b"VRCScreenShare is running. Open the owner URL from the container logs."
-			self.send_response(200)
-			self.send_header("Content-Type", "text/plain; charset=utf-8")
-			self.send_header("Content-Length", str(len(body)))
-			self.end_headers()
-			return self.wfile.write(body)
-		if path == f"/{ROOM_CODE}":
+		if path in {"/", f"/{ROOM_CODE}"}:
 			self.path = "/index.html"
 		elif not path.startswith("/assets/"):
 			self.send_error(404)
@@ -303,10 +302,9 @@ def main() -> None:
 		raise RuntimeError("Svelte build is missing. Run npm run build before starting the server.")
 	threading.Thread(target=_watch_stream, name="stream-relay", daemon=True).start()
 	server = ThreadingHTTPServer((HOST, int(os.environ.get("PORT", "8000"))), Handler)
-	owner_url = f"{PUBLIC_BASE_URL}/{ROOM_CODE}?key={quote(OWNER_KEY)}"
 	rtsp_host = PUBLIC_RTSP_HOST or urlsplit(PUBLIC_BASE_URL).hostname or "localhost"
+	log.info("Share page: %s", PUBLIC_BASE_URL)
 	log.info("RTSP/TCP URL: rtspt://%s:8554/%s", rtsp_host, ROOM_CODE)
-	log.info("Owner URL: %s", owner_url)
 	try:
 		server.serve_forever()
 	finally:

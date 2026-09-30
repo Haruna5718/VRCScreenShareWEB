@@ -93,7 +93,6 @@ main {
 	min-height: 34px;
 }
 
-.link-row + .link-row { margin-top: 7px; }
 .status-dot { flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%; background: #858585; }
 .status-dot.online { background: #5fc768; box-shadow: 0 0 8px #5fc76860; }
 
@@ -113,7 +112,6 @@ main {
 	text-decoration: none;
 }
 
-.link-value:hover { color: #fff; }
 .copy-button {
 	flex: 0 0 34px;
 	width: 34px;
@@ -127,13 +125,10 @@ main {
 	cursor: pointer;
 }
 .copy-button:hover { background: #505050; }
-.protocol-label { flex: 0 0 74px; color: #aaa; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
-.secondary .link-value { color: #a8a8a8; background: #303030; }
 .error-message { margin: 9px 0 0; color: #ff9b9b; font-size: 12px; overflow-wrap: anywhere; }
 
 @media (max-width: 540px) {
 	main { padding: 14px; }
 	.links-panel { padding: 10px; }
 	.link-value { font-size: 11px; }
-	.protocol-label { flex-basis: 62px; font-size: 10px; }
 }

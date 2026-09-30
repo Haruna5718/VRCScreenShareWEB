@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent
 DIST = ROOT / "dist"
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 MEDIA_API = os.environ.get("MEDIA_API", "http://mediamtx:9997")
+MEDIA_WEBRTC = os.environ.get("MEDIA_WEBRTC", "http://mediamtx:8889").rstrip("/")
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8080").rstrip("/")
 PUBLIC_RTSP_HOST = os.environ.get("PUBLIC_RTSP_HOST", "").strip()
 HOST = os.environ.get("HOST", "0.0.0.0")
@@ -185,8 +186,63 @@ class Handler(SimpleHTTPRequestHandler):
 		self.end_headers()
 		self.wfile.write(body)
 
+	def _proxy_media(self) -> None:
+		parsed = urlsplit(self.path)
+		if not parsed.path.startswith("/media/"):
+			return self.send_error(404)
+		upstream_path = parsed.path[len("/media"):]
+		parts = upstream_path.lstrip("/").split("/", 1)
+		endpoint = parts[1] if len(parts) == 2 else ""
+		if not parts or parts[0] != INGEST_PATH or (
+			endpoint not in {"publisher.js", "whip"} and not endpoint.startswith("whip/")
+		):
+			return self.send_error(404)
+		url = MEDIA_WEBRTC + upstream_path
+		if parsed.query:
+			url += "?" + parsed.query
+		try:
+			length = int(self.headers.get("Content-Length", "0") or "0")
+		except ValueError:
+			return self.send_error(400, "Invalid content length")
+		if length < 0:
+			return self.send_error(400, "Invalid content length")
+		if length > 2_000_000:
+			return self.send_error(413, "Media request is too large")
+		body = self.rfile.read(length) if length else None
+		headers = {
+			name: value for name, value in self.headers.items()
+			if name.lower() in {"accept", "authorization", "content-type", "if-match", "if-none-match", "origin", "user-agent"}
+		}
+		request = Request(url, data=body, headers=headers, method=self.command)
+		try:
+			response = urlopen(request, timeout=20)
+		except HTTPError as error:
+			response = error
+		except (URLError, OSError, TimeoutError):
+			return self.send_error(502, "Media server is unavailable")
+		payload = response.read()
+		self.send_response(getattr(response, "status", getattr(response, "code", 200)))
+		blocked = {"connection", "date", "keep-alive", "server", "te", "trailer", "transfer-encoding", "upgrade"}
+		for name, value in response.headers.items():
+			if name.lower() in blocked:
+				continue
+			if name.lower() == "location":
+				if value.startswith(MEDIA_WEBRTC):
+					value = value[len(MEDIA_WEBRTC):]
+				if value.startswith("/"):
+					value = "/media" + value
+			self.send_header(name, value)
+		if not response.headers.get("Content-Length"):
+			self.send_header("Content-Length", str(len(payload)))
+		self.end_headers()
+		if self.command != "HEAD":
+			self.wfile.write(payload)
+		response.close()
+
 	def do_GET(self):
 		path = urlsplit(self.path).path
+		if path.startswith("/media/"):
+			return self._proxy_media()
 		if path == "/healthz":
 			return self._json(200, {"ok": True})
 		if path == "/api/session":
@@ -203,7 +259,7 @@ class Handler(SimpleHTTPRequestHandler):
 				},
 			)
 		if path == "/":
-			body = b"VRCScreenShare is running. Open the viewer or owner URL from the container logs."
+			body = b"VRCScreenShare is running. Open the owner URL from the container logs."
 			self.send_response(200)
 			self.send_header("Content-Type", "text/plain; charset=utf-8")
 			self.send_header("Content-Length", str(len(body)))
@@ -217,7 +273,10 @@ class Handler(SimpleHTTPRequestHandler):
 		return super().do_GET()
 
 	def do_POST(self):
-		if urlsplit(self.path).path != "/api/auth":
+		path = urlsplit(self.path).path
+		if path.startswith("/media/"):
+			return self._proxy_media()
+		if path != "/api/auth":
 			return self.send_error(404)
 		try:
 			length = min(int(self.headers.get("Content-Length", "0")), 1_000_000)
@@ -229,6 +288,15 @@ class Handler(SimpleHTTPRequestHandler):
 		self.send_header("Content-Length", "0")
 		self.end_headers()
 
+	def do_PATCH(self):
+		return self._proxy_media()
+
+	def do_DELETE(self):
+		return self._proxy_media()
+
+	def do_OPTIONS(self):
+		return self._proxy_media()
+
 
 def main() -> None:
 	if not (DIST / "index.html").is_file():
@@ -236,8 +304,8 @@ def main() -> None:
 	threading.Thread(target=_watch_stream, name="stream-relay", daemon=True).start()
 	server = ThreadingHTTPServer((HOST, int(os.environ.get("PORT", "8000"))), Handler)
 	owner_url = f"{PUBLIC_BASE_URL}/{ROOM_CODE}?key={quote(OWNER_KEY)}"
-	share_url = f"{PUBLIC_BASE_URL}/{ROOM_CODE}"
-	log.info("Viewer URL: %s", share_url)
+	rtsp_host = PUBLIC_RTSP_HOST or urlsplit(PUBLIC_BASE_URL).hostname or "localhost"
+	log.info("RTSP/TCP URL: rtspt://%s:8554/%s", rtsp_host, ROOM_CODE)
 	log.info("Owner URL: %s", owner_url)
 	try:
 		server.serve_forever()

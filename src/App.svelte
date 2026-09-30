@@ -12,15 +12,12 @@
 	let rtspHost = "";
 	let ownerKey = "";
 	let publisher = null;
-	let reader = null;
 	let captureStream = null;
 	let publishAudioContext = null;
 	let pollTimer;
-	let readerRetryTimer;
 	let copyTimer;
 
 	const mediaUrl = (path, suffix) => `${location.origin}/media/${path}/${suffix}`;
-	const shareUrl = () => `${location.origin}/${code}`;
 	const rtspUrl = () => `rtspt://${rtspHost || location.hostname}:8554/${code}`;
 
 	async function loadClass(url, name) {
@@ -34,41 +31,6 @@
 		});
 		if (!window[name]) throw new Error(`${name} is unavailable.`);
 		return window[name];
-	}
-
-	async function connectReader() {
-		if (reader || readerRetryTimer || !live || sharing || !code) return;
-		try {
-			const Reader = await loadClass(mediaUrl(code, "reader.js"), "MediaMTXWebRTCReader");
-			reader = new Reader({
-				url: mediaUrl(code, "whep"),
-				user: "",
-				pass: "",
-				token: "",
-				onTrack: (event) => {
-					if (video && !sharing) video.srcObject = event.streams[0];
-				},
-				onError: () => {
-					reader?.close();
-					reader = null;
-					if (!readerRetryTimer) {
-						readerRetryTimer = setTimeout(() => {
-							readerRetryTimer = null;
-							connectReader();
-						}, 2500);
-					}
-				},
-			});
-		} catch (cause) {
-			error = cause instanceof Error ? cause.message : String(cause);
-		}
-	}
-
-	function closeReader() {
-		if (readerRetryTimer) clearTimeout(readerRetryTimer);
-		readerRetryTimer = null;
-		reader?.close();
-		reader = null;
 	}
 
 	async function createOutgoingStream(sourceStream) {
@@ -101,11 +63,6 @@
 			live = session.ready;
 			canPublish = session.canPublish;
 			rtspHost = session.rtspHost || "";
-			if (!sharing && live) connectReader();
-			if (!live && !sharing) {
-				closeReader();
-				if (video) video.srcObject = null;
-			}
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : String(cause);
 		}
@@ -128,7 +85,6 @@
 		if (!canPublish || busy) return;
 		busy = true;
 		error = "";
-		closeReader();
 		let nextStream;
 		let replaced = false;
 		try {
@@ -213,7 +169,6 @@
 		return () => {
 			clearInterval(pollTimer);
 			clearTimeout(copyTimer);
-			closeReader();
 			publisher?.close();
 			captureStream?.getTracks().forEach((track) => track.stop());
 			closePublishAudio();
@@ -223,7 +178,7 @@
 
 <svelte:head>
 	<title>VRCScreenShare · {code}</title>
-	<meta name="description" content="Share a live screen stream in your browser or VRChat." />
+	<meta name="description" content="Send a live screen stream to VRChat over RTSP/TCP." />
 </svelte:head>
 
 <main>
@@ -241,16 +196,9 @@
 
 		<div class="links-panel">
 			<div class="link-row">
-				<span class="status-dot" class:online={live}></span>
-				<a class="link-value" href={shareUrl()}>{shareUrl()}</a>
-				<button class="copy-button" onclick={() => copy(shareUrl(), "web")} aria-label="Copy viewer link" title="Copy viewer link">
-					{copied === "web" ? "✓" : "▢"}
-				</button>
-			</div>
-			<div class="link-row secondary">
-				<span class="protocol-label">RTSP/TCP</span>
+				<span class="status-dot" class:online={live} title={live ? "Streaming" : "Stopped"} aria-label={live ? "Streaming" : "Stopped"}></span>
 				<span class="link-value">{rtspUrl()}</span>
-				<button class="copy-button" onclick={() => copy(rtspUrl(), "rtsp")} aria-label="Copy RTSP URL" title="Copy RTSP URL">
+				<button class="copy-button" onclick={() => copy(rtspUrl(), "rtsp")} aria-label="Copy RTSP/TCP URL" title="Copy RTSP/TCP URL">
 					{copied === "rtsp" ? "✓" : "▢"}
 				</button>
 			</div>

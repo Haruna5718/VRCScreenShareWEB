@@ -8,8 +8,13 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
       PUBLIC_RTSP_HOST: ${PUBLIC_RTSP_HOST:-}
       MEDIA_API: http://mediamtx:9997
+      MEDIA_WEBRTC: http://mediamtx:8889
     volumes:
       - screenshare-data:/data
+    expose:
+      - "8000"
+    ports:
+      - "${WEB_BIND_ADDRESS:-0.0.0.0}:${WEB_PORT:-8080}:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
       interval: 5s
@@ -40,17 +45,6 @@ services:
       - "${RTSP_BIND_ADDRESS:-0.0.0.0}:${RTSP_PORT:-8554}:8554/tcp"
       - "${WEBRTC_BIND_ADDRESS:-0.0.0.0}:${WEBRTC_PORT:-8189}:8189/udp"
       - "${WEBRTC_BIND_ADDRESS:-0.0.0.0}:${WEBRTC_PORT:-8189}:8189/tcp"
-
-  proxy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    depends_on:
-      - app
-      - mediamtx
-    ports:
-      - "${WEB_BIND_ADDRESS:-0.0.0.0}:${WEB_PORT:-8080}:80"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
 
 volumes:
   screenshare-data:

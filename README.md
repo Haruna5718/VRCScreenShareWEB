@@ -24,9 +24,9 @@ The room code and owner key are saved in the `screenshare-data` volume, so resta
 
 ## Network setup
 
-- The web page is served on `WEB_PORT` (default `8080`). Put it behind HTTPS before using screen capture from another host; browsers only allow `getDisplayMedia()` on secure contexts such as HTTPS or localhost.
-- Forward UDP `WEBRTC_PORT` (default `8189`) to the server. Set `WEBRTC_ADDITIONAL_HOSTS` to the public IP or DNS name so WebRTC clients receive a reachable ICE candidate. TCP `8189` is also exposed as a fallback.
-- Forward TCP `RTSP_PORT` (default `8554`) for VRChat/RTSP viewers. RTSP is configured for TCP transport only.
+- The web page is served on `WEB_PORT` (default `8080`) and `WEB_BIND_ADDRESS` (default `0.0.0.0`). Put it behind HTTPS before using screen capture from another host; browsers only allow `getDisplayMedia()` on secure contexts such as HTTPS or localhost. In Coolify, route the `proxy` service on port `80` to your HTTPS domain and set `WEB_BIND_ADDRESS=127.0.0.1` to avoid publishing the plain HTTP port.
+- Forward UDP `WEBRTC_PORT` (default `8189`) to the server. Set `WEBRTC_BIND_ADDRESS` (default `0.0.0.0`) and `WEBRTC_ADDITIONAL_HOSTS` to the public IP or DNS name so WebRTC clients receive a reachable ICE candidate. TCP `8189` is also exposed as a fallback.
+- Forward TCP `RTSP_PORT` (default `8554`) from `RTSP_BIND_ADDRESS` (default `0.0.0.0`) for VRChat/RTSP viewers. RTSP is configured for TCP transport only.
 - If using a TLS reverse proxy, set `PUBLIC_BASE_URL` to the public HTTPS origin and `PUBLIC_RTSP_HOST` to the public RTSP hostname.
 
 The six-character room code is a convenient unlisted URL, not a password. Anyone with the Viewer URL can watch the stream. Only the Owner URL can publish a screen source.

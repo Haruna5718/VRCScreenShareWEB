@@ -37,9 +37,9 @@ services:
       MTX_AUTHMETHOD: http
       MTX_AUTHHTTPADDRESS: http://app:8000/api/auth
     ports:
-      - "${RTSP_PORT:-8554}:8554/tcp"
-      - "${WEBRTC_PORT:-8189}:8189/udp"
-      - "${WEBRTC_PORT:-8189}:8189/tcp"
+      - "${RTSP_BIND_ADDRESS:-0.0.0.0}:${RTSP_PORT:-8554}:8554/tcp"
+      - "${WEBRTC_BIND_ADDRESS:-0.0.0.0}:${WEBRTC_PORT:-8189}:8189/udp"
+      - "${WEBRTC_BIND_ADDRESS:-0.0.0.0}:${WEBRTC_PORT:-8189}:8189/tcp"
 
   proxy:
     image: caddy:2-alpine
@@ -48,7 +48,7 @@ services:
       - app
       - mediamtx
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "${WEB_BIND_ADDRESS:-0.0.0.0}:${WEB_PORT:-8080}:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
 

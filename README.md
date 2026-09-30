@@ -9,7 +9,7 @@ A small self-hosted screen streamer based on the capture and RTSP/TCP relay flow
 3. Build and start the containers:
 
    ```sh
-   docker compose up --build -d
+   docker compose -f compose.yaml -f compose.standalone.yaml up --build -d
    ```
 
 4. Read the generated addresses:
@@ -24,7 +24,7 @@ The room code and owner key are saved in the `screenshare-data` volume, so resta
 
 ## Network setup
 
-- The web page listens on port `8000` in the container; standalone Compose publishes it on `WEB_PORT` (default `8080`) and `WEB_BIND_ADDRESS` (default `0.0.0.0`). Put it behind HTTPS before using screen capture from another host; browsers only allow `getDisplayMedia()` on secure contexts such as HTTPS or localhost. In Coolify, route the `app` service on port `8000` to your HTTPS domain and set `WEB_BIND_ADDRESS=127.0.0.1` to avoid publishing the plain HTTP port.
+- The web page listens on port `8000` in the container. Coolify routes the app service address to that port; the main Compose file does not bind an extra host port. For standalone use, `compose.standalone.yaml` publishes it on `WEB_PORT` (default `8080`) and `WEB_BIND_ADDRESS` (default `0.0.0.0`). Put it behind HTTPS before using screen capture from another host; browsers only allow `getDisplayMedia()` on secure contexts such as HTTPS or localhost.
 - Forward UDP `WEBRTC_PORT` (default `8189`) to the server. Set `WEBRTC_BIND_ADDRESS` (default `0.0.0.0`) and `WEBRTC_ADDITIONAL_HOSTS` to the public IP or DNS name so WebRTC clients receive a reachable ICE candidate. TCP `8189` is also exposed as a fallback.
 - Forward TCP `RTSP_PORT` (default `8554`) from `RTSP_BIND_ADDRESS` (default `0.0.0.0`) for VRChat/RTSP viewers. RTSP is configured for TCP transport only.
 - Set `PUBLIC_BASE_URL` to the public HTTPS origin and `PUBLIC_RTSP_HOST` to the public RTSP host. If the web hostname is behind an HTTP-only CDN proxy, use the server's public IP for `PUBLIC_RTSP_HOST` and `WEBRTC_ADDITIONAL_HOSTS` so RTSP and WebRTC media bypass that proxy.

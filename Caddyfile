@@ -1,0 +1,8 @@
+:80 {
+	handle_path /media/* {
+		reverse_proxy mediamtx:8889 {
+			header_down Location ^/(.*)$ /media/$1
+		}
+	}
+	reverse_proxy app:8000
+}

@@ -1,0 +1,56 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /data
+      PORT: 8000
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      PUBLIC_RTSP_HOST: ${PUBLIC_RTSP_HOST:-}
+      MEDIA_API: http://mediamtx:9997
+    volumes:
+      - screenshare-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  mediamtx:
+    image: bluenviron/mediamtx:1.21.1
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      MTX_RTSPADDRESS: :8554
+      MTX_RTSPTRANSPORTS: tcp
+      MTX_WEBRTC: "yes"
+      MTX_WEBRTCADDRESS: :8889
+      MTX_WEBRTCLOCALUDPADDRESS: :8189
+      MTX_WEBRTCLOCALTCPADDRESS: :8189
+      MTX_WEBRTCADDITIONALHOSTS: ${WEBRTC_ADDITIONAL_HOSTS:-localhost}
+      MTX_SRT: "yes"
+      MTX_SRTADDRESS: :8890
+      MTX_API: "yes"
+      MTX_APIADDRESS: :9997
+      MTX_AUTHMETHOD: http
+      MTX_AUTHHTTPADDRESS: http://app:8000/api/auth
+    ports:
+      - "${RTSP_PORT:-8554}:8554/tcp"
+      - "${WEBRTC_PORT:-8189}:8189/udp"
+      - "${WEBRTC_PORT:-8189}:8189/tcp"
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+      - mediamtx
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+volumes:
+  screenshare-data:

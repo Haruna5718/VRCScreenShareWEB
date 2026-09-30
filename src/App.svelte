@@ -6,7 +6,8 @@
 	let live = false;
 	let sharing = false;
 	let busy = false;
-	let notice = null;
+	let notices = [];
+	let nextNoticeId = 0;
 	let copied = "";
 	let rtspAddress = "";
 	let publisher = null;
@@ -14,7 +15,6 @@
 	let publishAudioContext = null;
 	let pollTimer;
 	let copyTimer;
-	let noticeTimer;
 	let createSessionRequest = null;
 	const sessionKey = "vrc-screenshare-session";
 
@@ -56,11 +56,17 @@
 		publishAudioContext = null;
 	}
 
-	function showNotice(severity, title, message) {
-		if (notice?.title === title && notice?.message === message) return;
-		notice = { severity, title, message };
-		clearTimeout(noticeTimer);
-		noticeTimer = setTimeout(() => (notice = null), 6000);
+	function showNotice(level, title, message) {
+		if (notices.some((notice) => notice.title === title && notice.message === message)) return;
+		notices = [...notices, { id: nextNoticeId++, level, title, message }];
+	}
+
+	function dismissNotice(id) {
+		notices = notices.filter((notice) => notice.id !== id);
+	}
+
+	function noticeIcon(level) {
+		return ["", "", "", ""][level] || "";
 	}
 
 	function acceptSession(session) {
@@ -93,7 +99,7 @@
 			const session = await response.json();
 			acceptSession(session);
 		} catch (cause) {
-			showNotice("critical", "Connection failed", cause instanceof Error ? cause.message : String(cause));
+			showNotice(3, "Connection failed", cause instanceof Error ? cause.message : String(cause));
 		}
 	}
 
@@ -164,7 +170,8 @@
 				sharing = false;
 				if (video && video.srcObject === nextStream) video.srcObject = null;
 			}
-			showNotice("critical", "Screen sharing failed", cause instanceof Error ? cause.message : String(cause));
+			const cancelled = cause instanceof DOMException && cause.name === "NotAllowedError";
+			showNotice(cancelled ? 2 : 3, cancelled ? "Source not selected" : "Screen sharing failed", cause instanceof Error ? cause.message : String(cause));
 			await refreshSession();
 		} finally {
 			busy = false;
@@ -177,9 +184,9 @@
 			copied = label;
 			clearTimeout(copyTimer);
 			copyTimer = setTimeout(() => (copied = ""), 1400);
-			showNotice("success", "Copied", "The RTSP/TCP address is on your clipboard.");
+			showNotice(1, "Copied", "The RTSP/TCP address is on your clipboard.");
 		} catch {
-			showNotice("critical", "Copy failed", "Clipboard access was blocked by the browser.");
+			showNotice(3, "Copy failed", "Clipboard access was blocked by the browser.");
 		}
 	}
 
@@ -193,7 +200,6 @@
 		return () => {
 			clearInterval(pollTimer);
 			clearTimeout(copyTimer);
-			clearTimeout(noticeTimer);
 			publisher?.close();
 			captureStream?.getTracks().forEach((track) => track.stop());
 			closePublishAudio();
@@ -229,13 +235,17 @@
 	</section>
 </main>
 
-{#if notice}
-	<aside class="notice" class:success={notice.severity === "success"} class:caution={notice.severity === "caution"} class:critical={notice.severity === "critical"} role={notice.severity === "critical" ? "alert" : "status"} aria-live={notice.severity === "critical" ? "assertive" : "polite"}>
-		<span class="notice-icon" aria-hidden="true">{notice.severity === "success" ? "" : notice.severity === "caution" ? "" : ""}</span>
-		<div class="notice-copy">
-			<strong>{notice.title}</strong>
-			<span>{notice.message}</span>
-		</div>
-		<button class="notice-close" onclick={() => (notice = null)} aria-label="Dismiss"></button>
-	</aside>
+{#if notices.length}
+	<div class="notice-stack" aria-live="polite">
+		{#each notices as item (item.id)}
+			<aside class="notice" class:l0={item.level === 0} class:l1={item.level === 1} class:l2={item.level === 2} class:l3={item.level === 3} role={item.level === 3 ? "alert" : "status"}>
+				<span class="notice-icon" aria-hidden="true">{noticeIcon(item.level)}</span>
+				<span class="notice-content">
+					<span class="notice-title">{item.title}</span>
+					<span class="notice-description">{item.message}</span>
+				</span>
+				<button class="notice-close" onclick={() => dismissNotice(item.id)} aria-label="Dismiss"></button>
+			</aside>
+		{/each}
+	</div>
 {/if}

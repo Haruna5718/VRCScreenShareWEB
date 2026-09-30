@@ -154,66 +154,78 @@ main {
 }
 .copy-button:hover { background: #505050; }
 .copy-button:disabled { cursor: default; opacity: .55; }
-.notice {
+.notice-stack {
 	position: fixed;
-	right: 24px;
-	bottom: 24px;
-	z-index: 5;
-	width: min(380px, calc(100vw - 32px));
-	min-height: 72px;
+	top: 10px;
+	right: 10px;
+	z-index: 1000;
 	display: flex;
-	align-items: flex-start;
-	gap: 12px;
-	padding: 14px 12px;
-	border: 1px solid #555;
-	border-left: 4px solid #60cdff;
-	border-radius: 5px;
-	background: #333;
-	box-shadow: 0 8px 28px #0008;
-	color: #f3f3f3;
-	font-family: inherit;
-	animation: notice-in .16s ease-out;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 4px;
+	pointer-events: none;
 }
-.notice.success { border-left-color: #6ccb5f; }
-.notice.caution { border-left-color: #fce100; }
-.notice.critical { border-left-color: #ff99a4; }
+.notice {
+	width: fit-content;
+	max-width: calc(100vw - 20px);
+	display: flex;
+	gap: 10px;
+	padding: 6px;
+	border-radius: 4px;
+	box-shadow: 0 0 4px 1px #0006;
+	color: #fff;
+	pointer-events: auto;
+}
+.notice.l0 { background: #2e2e2e; }
+.notice.l1 { background: #393d1b; }
+.notice.l2 { background: #433519; }
+.notice.l3 { background: #442726; }
 .notice-icon {
-	flex: 0 0 20px;
-	padding-top: 1px;
-	color: #60cdff;
+	flex: 0 0 16px;
+	width: 16px;
+	height: 16px;
+	align-self: flex-start;
+	justify-content: center;
+	margin: 9px 0 9px 9px;
+	padding: 0 0 .5px .5px;
+	border-radius: 8px;
+	background: #60cdff;
+	color: #2e2e2e;
 	font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
-	font-size: 17px;
-	line-height: 20px;
+	font-size: 18px;
+	line-height: 16px;
 }
-.notice.success .notice-icon { color: #6ccb5f; }
-.notice.caution .notice-icon { color: #fce100; }
-.notice.critical .notice-icon { color: #ff99a4; }
-.notice-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 4px; }
-.notice-copy strong { font-size: 13px; font-weight: 600; line-height: 18px; }
-.notice-copy span { color: #d0d0d0; font-size: 12px; line-height: 17px; overflow-wrap: anywhere; }
+.notice.l1 .notice-icon { background: #6ccb5f; color: #393d1b; }
+.notice.l2 .notice-icon { background: #fce100; color: #433519; }
+.notice.l3 .notice-icon { background: #ff99a4; color: #442726; }
+.notice-icon { display: flex; align-items: center; }
+.notice-content {
+	max-width: calc(100vw - 90px);
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+}
+.notice-title { margin: 6px 8px 0 0; font-size: 16px; font-weight: 550; line-height: 20px; }
+.notice-description { margin: 4px 0 6px; font-size: 14px; font-weight: 400; line-height: 17px; overflow-wrap: anywhere; }
 .notice-close {
-	flex: 0 0 26px;
-	width: 26px;
-	height: 26px;
-	margin: -5px -3px 0 0;
+	flex: 0 0 34px;
+	width: 34px;
+	height: 34px;
 	border: 0;
-	border-radius: 3px;
+	border-radius: 4px;
 	background: transparent;
-	color: #ccc;
+	color: inherit;
 	font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
-	font-size: 12px;
+	font-size: 16px;
 	cursor: pointer;
 }
-.notice-close:hover { background: #ffffff18; color: #fff; }
-@keyframes notice-in {
-	from { opacity: 0; transform: translateY(5px); }
-	to { opacity: 1; transform: translateY(0); }
-}
+.notice-close:hover { background: #ffffff0f; }
+.notice-close:active { background: #ffffff0a; }
 
 @media (max-width: 540px) {
 	main { padding: 12px; }
 	.links-panel { padding: 12px; }
 	.link-pill { max-width: calc(100% - 39px); }
 	.link-value { font-size: 11px; }
-	.notice { right: 12px; bottom: 12px; }
+	.notice-stack { top: 10px; right: 10px; }
 }

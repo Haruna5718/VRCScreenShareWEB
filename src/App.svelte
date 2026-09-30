@@ -193,11 +193,11 @@
 		<div class="links-panel">
 			<div class="link-row">
 				<div class="link-pill">
-					<span class="status-dot" class:online={live} title={live ? "Streaming" : "Stopped"} aria-label={live ? "Streaming" : "Stopped"}></span>
+					<span class="status-dot" class:online={live} title={live ? "Streaming" : "Stopped"} aria-label={live ? "Streaming" : "Stopped"}></span>
 					<span class="link-value">{rtspAddress || "Connecting…"}</span>
 				</div>
 				<button class="copy-button" onclick={() => copy(rtspAddress, "rtsp")} disabled={!rtspAddress} aria-label="Copy RTSP/TCP URL" title="Copy RTSP/TCP URL">
-					{copied === "rtsp" ? "✓" : "▢"}
+					{copied === "rtsp" ? "" : ""}
 				</button>
 			</div>
 			{#if error}

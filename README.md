@@ -20,8 +20,8 @@ The room ID is scoped to a browser tab and survives reloads in that tab. Opening
 
 - The web page listens on port `8000` in the container. Coolify routes the app service address to that port; the main Compose file does not bind an extra host port. For standalone use, `compose.standalone.yaml` publishes it on `WEB_PORT` (default `8080`) and `WEB_BIND_ADDRESS` (default `0.0.0.0`). Put it behind HTTPS before using screen capture from another host; browsers only allow `getDisplayMedia()` on secure contexts such as HTTPS or localhost.
 - Forward UDP `WEBRTC_PORT` (default `8189`) to the server. Set `WEBRTC_BIND_ADDRESS` (default `0.0.0.0`) and `WEBRTC_ADDITIONAL_HOSTS` to the public IP or DNS name so WebRTC clients receive a reachable ICE candidate. TCP `8189` is also exposed as a fallback.
-- Forward TCP `RTSP_PORT` (default `8554`) from `RTSP_BIND_ADDRESS` (default `0.0.0.0`) for VRChat/RTSP viewers. RTSP is configured for TCP transport only.
-- Set `PUBLIC_BASE_URL` to the public HTTPS origin and `PUBLIC_RTSP_HOST` to the public RTSP host. If the web hostname is behind an HTTP-only CDN proxy, use the server's public IP for `PUBLIC_RTSP_HOST` and `WEBRTC_ADDITIONAL_HOSTS` so RTSP and WebRTC media bypass that proxy.
+- Forward TCP `RTSP_PORT` (default `554`) from `RTSP_BIND_ADDRESS` (default `0.0.0.0`) for VRChat/RTSP viewers. The copied `rtspt://` URL omits the port and uses TCP 554; the media server listens on container port `8554`.
+- Set `PUBLIC_BASE_URL` to the public HTTPS origin and `PUBLIC_RTSP_HOST` to the public RTSP host. The RTSP hostname must resolve directly to the server or use Cloudflare Spectrum; Cloudflare's standard HTTP proxy does not proxy RTSP/TCP on port `554`. Set `WEBRTC_ADDITIONAL_HOSTS` to a public IP or hostname reachable by WebRTC clients.
 
 The six-character room path is unlisted, not a password. Anyone who has a session's RTSP URL can watch that stream. Each session accepts one active publisher.
 

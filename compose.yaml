@@ -40,7 +40,7 @@ services:
       MTX_AUTHMETHOD: http
       MTX_AUTHHTTPADDRESS: http://app:8000/api/auth
     ports:
-      - "${RTSP_BIND_ADDRESS:-0.0.0.0}:${RTSP_PORT:-8554}:8554/tcp"
+      - "${RTSP_BIND_ADDRESS:-0.0.0.0}:${RTSP_PORT:-554}:8554/tcp"
       - "${WEBRTC_BIND_ADDRESS:-0.0.0.0}:${WEBRTC_PORT:-8189}:8189/udp"
       - "${WEBRTC_BIND_ADDRESS:-0.0.0.0}:${WEBRTC_PORT:-8189}:8189/tcp"
 

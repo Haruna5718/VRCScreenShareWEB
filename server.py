@@ -76,6 +76,11 @@ def _touch_session(code: str) -> bool:
 		return True
 
 
+def _rtsp_url(code: str) -> str:
+	rtsp_host = PUBLIC_RTSP_HOST or urlsplit(PUBLIC_BASE_URL).hostname or "localhost"
+	return f"rtspt://{rtsp_host}/{code}"
+
+
 def _session_codes() -> list[str]:
 	with sessions_lock:
 		return list(sessions)
@@ -301,12 +306,11 @@ class Handler(SimpleHTTPRequestHandler):
 			requested_code = parse_qs(urlsplit(self.path).query).get("code", [""])[0]
 			if not _touch_session(requested_code):
 				return self.send_error(404)
-			rtsp_host = PUBLIC_RTSP_HOST or urlsplit(PUBLIC_BASE_URL).hostname or "localhost"
 			return self._json(
 				200,
 				{
 					"code": requested_code,
-					"rtspUrl": f"rtspt://{rtsp_host}:8554/{requested_code}",
+					"rtspUrl": _rtsp_url(requested_code),
 					"ready": _media_path_ready(requested_code),
 				},
 			)
@@ -323,8 +327,7 @@ class Handler(SimpleHTTPRequestHandler):
 			return self._proxy_media()
 		if path == "/api/session":
 			code = _new_session()
-			rtsp_host = PUBLIC_RTSP_HOST or urlsplit(PUBLIC_BASE_URL).hostname or "localhost"
-			return self._json(201, {"code": code, "rtspUrl": f"rtspt://{rtsp_host}:8554/{code}", "ready": False})
+			return self._json(201, {"code": code, "rtspUrl": _rtsp_url(code), "ready": False})
 		if path != "/api/auth":
 			return self.send_error(404)
 		try:
